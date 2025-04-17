@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.3)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.4)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -31,14 +31,14 @@ success() {
     echo -e "${GREEN}✔${NC} $1"
 }
 
-# Crafty Installation mit allen erforderlichen Eingaben
+# Crafty Installation mit expect
 install_crafty() {
     header
     progress "Starte Crafty Controller Installation"
     
     # Vorbereitung
     run_cmd "sudo apt update"
-    run_cmd "sudo apt install -y git python3-pip"
+    run_cmd "sudo apt install -y git python3-pip expect"
     
     # Clone Repository
     if [ ! -d "crafty-installer-4.0" ]; then
@@ -49,26 +49,28 @@ install_crafty() {
     cd crafty-installer-4.0 || error "Verzeichniswechsel fehlgeschlagen"
     
     # Automatische Installation mit expect
-    run_cmd "sudo apt install -y expect"
     progress "Starte automatische Installation mit expect"
     
-    /usr/bin/expect <<EOD
+    # Expect-Skript mit korrekter Syntax für Sonderzeichen
+    expect <<EOD
 set timeout 300
 spawn sudo ./install_crafty.sh
 
-expect "Install Crafty to this directory? /var/opt/minecraft/crafty - ['y', 'n']:" 
+expect "Install Crafty to this directory? /var/opt/minecraft/crafty - \\\[y, n\\\]:"
 send "y\r"
 
-expect "Which branch of Crafty would you like to run? - \['master', 'dev'\]:"
+expect "Which branch of Crafty would you like to run? - \\\[master, dev\\\]:"
 send "master\r"
 
-expect "Would you like us to create a virtual environment? - ['y', 'n']:"
+expect "Would you like us to create a virtual environment? - \\\[y, n\\\]:"
 send "y\r"
 
-expect "Would you like us to install the required pip packages? - ['y', 'n']:"
+expect "Would you like us to install the required pip packages? - \\\[y, n\\\]:"
 send "y\r"
 
 expect eof
+catch wait result
+exit [lindex \$result 3]
 EOD
 
     if [ $? -ne 0 ]; then
