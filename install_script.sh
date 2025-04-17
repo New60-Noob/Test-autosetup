@@ -5,25 +5,53 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Debug-Modus (0=aus, 1=ein)
+# Default-Einstellungen
 DEBUG=0
-
-# Logdatei
+FORCE=0
+BACKUP=1
 LOG_FILE="install.log"
+
+# Hilfe anzeigen
+show_help() {
+    echo -e "${GREEN}Verwendung:${NC}"
+    echo -e "  $0 [Optionen]"
+    echo -e "\n${GREEN}Optionen:${NC}"
+    echo -e "  ${CYAN}-d${NC}    Debug-Modus (zeigt erweiterte Ausgaben)"
+    echo -e "  ${CYAN}-f${NC}    Erzwinge Neuinstallation (auch wenn bereits installiert)"
+    echo -e "  ${CYAN}-b${NC}    Deaktiviere automatische Backups"
+    echo -e "  ${CYAN}-h${NC}    Zeige diese Hilfe"
+    exit 0
+}
+
+# Parameter verarbeiten
+while getopts ":dfbh" opt; do
+    case $opt in
+        d) DEBUG=1 ;;
+        f) FORCE=1 ;;
+        b) BACKUP=0 ;;
+        h) show_help ;;
+        \?) echo -e "${RED}Ungültige Option: -$OPTARG${NC}" >&2; exit 1 ;;
+    esac
+done
 
 # Funktionen
 log() {
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
     if [ "$DEBUG" -eq 1 ]; then
-        echo -e "$1"
+        echo -e "${CYAN}[DEBUG]${NC} $1"
     fi
 }
 
 progress() {
-    echo -ne "${BLUE}[${NC}${GREEN}${1}%${NC}${BLUE}]${NC} ${2}\r"
-    sleep 0.1
+    if [ "$DEBUG" -eq 0 ]; then
+        echo -ne "${BLUE}[${NC}${GREEN}${1}%${NC}${BLUE}]${NC} ${2}\r"
+        sleep 0.1
+    else
+        log "Fortschritt: ${1}% - ${2}"
+    fi
 }
 
 error() {
@@ -32,8 +60,54 @@ error() {
     exit 1
 }
 
+check_installed() {
+    if [ "$FORCE" -eq 1 ]; then
+        log "Erzwinge Neuinstallation (Force-Modus aktiviert)"
+        return 1
+    fi
+    
+    if [ -d "/var/opt/minecraft/crafty" ]; then
+        log "Crafty scheint bereits installiert zu sein"
+        return 0
+    fi
+    
+    if systemctl is-active --quiet playit; then
+        log "Playit.gg scheint bereits installiert zu sein"
+        return 0
+    fi
+    
+    return 1
+}
+
+create_backup() {
+    if [ "$BACKUP" -eq 0 ]; then
+        log "Backups deaktiviert (Parameter -b)"
+        return
+    fi
+    
+    progress 5 "Erstelle Backup..."
+    local backup_dir="backup_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$backup_dir"
+    
+    log "Backup-Verzeichnis: $PWD/$backup_dir"
+    
+    if [ -d "/var/opt/minecraft/crafty" ]; then
+        cp -r /var/opt/minecraft/crafty "$backup_dir/" >> "$LOG_FILE" 2>&1
+    fi
+    
+    if [ -f "/usr/local/bin/playit" ]; then
+        cp /usr/local/bin/playit "$backup_dir/" >> "$LOG_FILE" 2>&1
+    fi
+    
+    if [ -f "/etc/systemd/system/playit.service" ]; then
+        cp /etc/systemd/system/playit.service "$backup_dir/" >> "$LOG_FILE" 2>&1
+    fi
+    
+    log "Backup abgeschlossen"
+}
+
 check_root() {
-    progress 5 "Überprüfe Root-Rechte..."
+    progress 10 "Überprüfe Root-Rechte..."
     if [ "$(id -u)" -ne 0 ]; then
         error "Dieses Skript muss als root ausgeführt werden!"
     fi
@@ -41,7 +115,7 @@ check_root() {
 }
 
 check_debian() {
-    progress 10 "Überprüfe Debian-Version..."
+    progress 15 "Überprüfe Debian-Version..."
     if [ ! -f /etc/debian_version ]; then
         error "Dies ist kein Debian-System!"
     fi
@@ -55,7 +129,7 @@ check_debian() {
 }
 
 update_system() {
-    progress 15 "Aktualisiere Systempakete..."
+    progress 20 "Aktualisiere Systempakete..."
     log "Starte apt update"
     apt update -y >> "$LOG_FILE" 2>&1 || error "apt update fehlgeschlagen"
     
@@ -63,7 +137,7 @@ update_system() {
     log "Starte apt upgrade"
     apt upgrade -y >> "$LOG_FILE" 2>&1 || error "apt upgrade fehlgeschlagen"
     
-    progress 45 "Installiere erforderliche Abhängigkeiten..."
+    progress 40 "Installiere erforderliche Abhängigkeiten..."
     log "Installiere git und andere Abhängigkeiten"
     apt install -y git curl wget >> "$LOG_FILE" 2>&1 || error "Paketinstallation fehlgeschlagen"
 }
@@ -150,11 +224,22 @@ show_completion() {
 # Hauptprogramm
 main() {
     clear
-    echo -e "${GREEN}=== Automatische Installation von Crafty Controller und Playit.gg ===${NC}\n"
+    echo -e "${GREEN}=== Automatische Installation von Crafty Controller und Playit.gg ===${NC}"
+    echo -e "${BLUE}Parameter:${NC} Debug=$DEBUG, Force=$FORCE, Backup=$BACKUP\n"
     
     # Logdatei initialisieren
     echo "=== Installationslog $(date) ===" > "$LOG_FILE"
+    log "Startparameter: Debug=$DEBUG, Force=$FORCE, Backup=$BACKUP"
     
+    if check_installed; then
+        if [ "$FORCE" -eq 0 ]; then
+            echo -e "${YELLOW}Warnung: Es scheint, dass bereits eine Installation existiert.${NC}"
+            echo -e "Verwende ${CYAN}-f${NC} um die Installation trotzdem durchzuführen."
+            exit 1
+        fi
+    fi
+    
+    create_backup
     check_root
     check_debian
     update_system
@@ -170,4 +255,4 @@ main() {
 }
 
 # Skript ausführen
-main
+main "$@"
