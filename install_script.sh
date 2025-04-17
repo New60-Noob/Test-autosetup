@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.4)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.5)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -51,21 +51,21 @@ install_crafty() {
     # Automatische Installation mit expect
     progress "Starte automatische Installation mit expect"
     
-    # Expect-Skript mit korrekter Syntax für Sonderzeichen
-    expect <<EOD
+    # Expect-Skript mit korrekter Syntax
+    sudo expect <<EOD
 set timeout 300
-spawn sudo ./install_crafty.sh
+spawn ./install_crafty.sh
 
-expect "Install Crafty to this directory? /var/opt/minecraft/crafty - \\\[y, n\\\]:"
+expect "Install Crafty to this directory? /var/opt/minecraft/crafty - \\\\\[y, n\\\\\]:"
 send "y\r"
 
-expect "Which branch of Crafty would you like to run? - \\\[master, dev\\\]:"
+expect "Which branch of Crafty would you like to run? - \\\\\[master, dev\\\\\]:"
 send "master\r"
 
-expect "Would you like us to create a virtual environment? - \\\[y, n\\\]:"
+expect "Would you like us to create a virtual environment? - \\\\\[y, n\\\\\]:"
 send "y\r"
 
-expect "Would you like us to install the required pip packages? - \\\[y, n\\\]:"
+expect "Would you like us to install the required pip packages? - \\\\\[y, n\\\\\]:"
 send "y\r"
 
 expect eof
