@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.2)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.3)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -48,24 +48,32 @@ install_crafty() {
     # Wechsel ins Verzeichnis
     cd crafty-installer-4.0 || error "Verzeichniswechsel fehlgeschlagen"
     
-    # Installation mit allen erforderlichen Eingaben
-    progress "Starte Installationsskript mit automatischen Eingaben"
+    # Automatische Installation mit expect
+    run_cmd "sudo apt install -y expect"
+    progress "Starte automatische Installation mit expect"
     
-    # Temporäre Eingabedatei erstellen mit allen benötigten Antworten:
-    # 1. Installationsverzeichnis bestätigen (y)
-    # 2. Branch auswählen (master)
-    # 3. Virtuelle Umgebung erstellen (y)
-    # 4. Abhängigkeiten installieren (y)
-    echo -e "y\nmaster\ny\ny" > /tmp/crafty_input.txt
-    
-    # Installation mit vorbereiteten Eingaben ausführen
-    sudo ./install_crafty.sh < /tmp/crafty_input.txt || {
-        rm -f /tmp/crafty_input.txt
-        error "Crafty Installation fehlgeschlagen"
-    }
-    
-    # Temporäre Datei bereinigen
-    rm -f /tmp/crafty_input.txt
+    /usr/bin/expect <<EOD
+set timeout 300
+spawn sudo ./install_crafty.sh
+
+expect "Install Crafty to this directory? /var/opt/minecraft/crafty - ['y', 'n']:" 
+send "y\r"
+
+expect "Which branch of Crafty would you like to run? - \['master', 'dev'\]:"
+send "master\r"
+
+expect "Would you like us to create a virtual environment? - ['y', 'n']:"
+send "y\r"
+
+expect "Would you like us to install the required pip packages? - ['y', 'n']:"
+send "y\r"
+
+expect eof
+EOD
+
+    if [ $? -ne 0 ]; then
+        error "Crafty Installation fehlgeschlagen (expect)"
+    fi
     
     # Verifizierung
     if [ ! -f "/var/opt/minecraft/crafty/run_crafty.sh" ]; then
