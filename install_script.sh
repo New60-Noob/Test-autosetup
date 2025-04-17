@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.0)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.1)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -31,40 +31,49 @@ success() {
     echo -e "${GREEN}✔${NC} $1"
 }
 
-# Crafty Installation mit korrekter Abfolge
+# Crafty Installation mit korrekter Eingabehandhabung
 install_crafty() {
     header
     progress "Starte Crafty Controller Installation"
     
     # Vorbereitung
     run_cmd "sudo apt update"
-    run_cmd "sudo apt install -y git"
+    run_cmd "sudo apt install -y git python3-pip"
     
-    # Clone Repository mit Fehlerbehandlung
+    # Clone Repository
     if [ ! -d "crafty-installer-4.0" ]; then
         run_cmd "git clone https://gitlab.com/crafty-controller/crafty-installer-4.0.git" || error "Clone fehlgeschlagen"
     fi
     
-    # Wechsel ins Verzeichnis mit Fehlerbehandlung
-    run_cmd "cd crafty-installer-4.0" || error "Verzeichniswechsel fehlgeschlagen"
+    # Wechsel ins Verzeichnis
+    cd crafty-installer-4.0 || error "Verzeichniswechsel fehlgeschlagen"
     
-    # Installation mit automatischer Bestätigung
-    progress "Starte Installationsskript (automatische Bestätigung)"
-    echo -e "y\n" | sudo ./install_crafty.sh || error "Crafty Installation fehlgeschlagen"
+    # Installation mit vorbereiteten Eingaben
+    progress "Starte Installationsskript mit automatischen Eingaben"
     
-    # Verifizierung der Installation
+    # Temporäre Eingabedatei erstellen
+    echo -e "y\ny\ny\ny" > /tmp/crafty_input.txt
+    
+    # Installation mit vorbereiteten Eingaben ausführen
+    sudo ./install_crafty.sh < /tmp/crafty_input.txt || {
+        rm -f /tmp/crafty_input.txt
+        error "Crafty Installation fehlgeschlagen"
+    }
+    
+    # Temporäre Datei bereinigen
+    rm -f /tmp/crafty_input.txt
+    
+    # Verifizierung
     if [ ! -f "/var/opt/minecraft/crafty/run_crafty.sh" ]; then
-        error "Crafty Installation unvollständig - run_crafty.sh nicht gefunden"
+        error "Installation unvollständig - run_crafty.sh nicht gefunden"
     fi
     
     # Crafty starten
     progress "Starte Crafty Dienst"
     sudo su - crafty -c "cd /var/opt/minecraft/crafty && nohup ./run_crafty.sh > crafty.log 2>&1 &"
-    sleep 10
+    sleep 15
     
-    # Zurück zum ursprünglichen Verzeichnis
     cd ..
-    
     success "Crafty Controller erfolgreich installiert"
 }
 
@@ -100,6 +109,20 @@ EOL"
     success "Playit.gg erfolgreich installiert"
 }
 
+# Hilfsfunktion für Befehlsausführung
+run_cmd() {
+    echo -e "${BLUE}┌── Befehl:${NC} ${YELLOW}$1${NC}"
+    echo -e "${BLUE}└──${NC} $(date)"
+    eval "$1" > /tmp/install.log 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}└── FEHLER!${NC} Log: /tmp/install.log"
+        return 1
+    else
+        echo -e "${GREEN}└── Erfolgreich${NC}"
+        return 0
+    fi
+}
+
 # Hauptfunktion
 main() {
     # Systemvorbereitung
@@ -124,27 +147,13 @@ main() {
     echo -e "${YELLOW}🔹 Crafty Controller:${NC}"
     echo -e "  - URL: ${GREEN}https://$(hostname -I | cut -d' ' -f1):8443${NC}"
     echo -e "  - Standard Login: admin / crafty"
-    echo -e "  - Verzeichnis: /var/opt/minecraft/crafty"
+    echo -e "  - Logs: sudo tail -f /var/opt/minecraft/crafty/logs/*.log"
     echo ""
     echo -e "${YELLOW}🔹 Playit.gg:${NC}"
     echo -e "  - Setup: ./playit-linux-amd64 setup"
     echo -e "  - Status: sudo systemctl status playit"
     echo ""
     echo -e "${CYAN}══════════════════════════════════════════════════════${NC}"
-}
-
-# Hilfsfunktion für Befehlsausführung
-run_cmd() {
-    echo -e "${BLUE}┌── Befehl:${NC} ${YELLOW}$1${NC}"
-    echo -e "${BLUE}└──${NC} $(date)"
-    eval "$1" > /tmp/install.log 2>&1
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}└── FEHLER!${NC} Log: /tmp/install.log"
-        return 1
-    else
-        echo -e "${GREEN}└── Erfolgreich${NC}"
-        return 0
-    fi
 }
 
 # Skriptstart
