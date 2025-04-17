@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v5.0)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v6.0)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -31,7 +31,7 @@ success() {
     echo -e "${GREEN}✔${NC} $1"
 }
 
-# Crafty Installation ohne expect
+# Crafty Installation mit direkter Eingabeumleitung
 install_crafty() {
     header
     progress "Starte Crafty Controller Installation"
@@ -48,20 +48,15 @@ install_crafty() {
     # Wechsel ins Verzeichnis
     cd crafty-installer-4.0 || error "Verzeichniswechsel fehlgeschlagen"
     
-    # Automatische Installation mit vorbereiteten Antworten
+    # Automatische Installation mit direkter Eingabeumleitung
     progress "Starte automatische Installation"
     
-    # Temporäre Eingabedatei erstellen
-    echo -e "y\nmaster\ny\ny" > crafty_answers.txt
-    
-    # Installation mit vorbereiteten Antworten
-    sudo ./install_crafty.sh < crafty_answers.txt || {
-        rm -f crafty_answers.txt
-        error "Crafty Installation fehlgeschlagen"
-    }
-    
-    # Temporäre Datei bereinigen
-    rm -f crafty_answers.txt
+    # Antworten in der richtigen Reihenfolge:
+    # 1. Installationsverzeichnis bestätigen (y)
+    # 2. Branch auswählen (master)
+    # 3. Virtuelle Umgebung erstellen (y)
+    # 4. Pip-Pakete installieren (y)
+    printf "y\nmaster\ny\ny\n" | sudo ./install_crafty.sh || error "Crafty Installation fehlgeschlagen"
     
     # Verifizierung
     if [ ! -f "/var/opt/minecraft/crafty/run_crafty.sh" ]; then
