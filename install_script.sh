@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.1)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.2)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -31,7 +31,7 @@ success() {
     echo -e "${GREEN}✔${NC} $1"
 }
 
-# Crafty Installation mit korrekter Eingabehandhabung
+# Crafty Installation mit allen erforderlichen Eingaben
 install_crafty() {
     header
     progress "Starte Crafty Controller Installation"
@@ -48,11 +48,15 @@ install_crafty() {
     # Wechsel ins Verzeichnis
     cd crafty-installer-4.0 || error "Verzeichniswechsel fehlgeschlagen"
     
-    # Installation mit vorbereiteten Eingaben
+    # Installation mit allen erforderlichen Eingaben
     progress "Starte Installationsskript mit automatischen Eingaben"
     
-    # Temporäre Eingabedatei erstellen
-    echo -e "y\ny\ny\ny" > /tmp/crafty_input.txt
+    # Temporäre Eingabedatei erstellen mit allen benötigten Antworten:
+    # 1. Installationsverzeichnis bestätigen (y)
+    # 2. Branch auswählen (master)
+    # 3. Virtuelle Umgebung erstellen (y)
+    # 4. Abhängigkeiten installieren (y)
+    echo -e "y\nmaster\ny\ny" > /tmp/crafty_input.txt
     
     # Installation mit vorbereiteten Eingaben ausführen
     sudo ./install_crafty.sh < /tmp/crafty_input.txt || {
