@@ -9,119 +9,74 @@ CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
-# Funktion für Header
+# Funktionen für bessere Darstellung
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v3.0)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v4.0)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
-# Funktion für Fortschrittsanzeige
 progress() {
     echo -e "${BLUE}==>${NC} ${CYAN}$1${NC}"
 }
 
-# Funktion für Fehler
 error() {
     echo -e "${RED}✖ ERROR:${NC} $1"
     exit 1
 }
 
-# Funktion für Erfolgsmeldung
 success() {
     echo -e "${GREEN}✔${NC} $1"
 }
 
-# Funktion für Warnung
-warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
-
-# Funktion zur Befehlsausführung mit automatischer Bestätigung
-run_cmd() {
-    echo -e "${BLUE}┌── ${MAGENTA}Befehl:${NC} ${YELLOW}$1${NC}"
-    echo -e "${BLUE}└──${NC} $(date)"
-    
-    # Spezialbehandlung für crafty installer
-    if [[ "$1" == *"install_crafty.sh"* ]]; then
-        # Automatische Bestätigung aller Fragen
-        echo -e "y\n" | sudo ./install_crafty.sh > /tmp/install.log 2>&1
-    else
-        eval "$1" > /tmp/install.log 2>&1
-    fi
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}└── FEHLER!${NC} Log: /tmp/install.log"
-        return 1
-    else
-        echo -e "${GREEN}└── Erfolgreich${NC}"
-        return 0
-    fi
-}
-
-# Crafty Installation
+# Crafty Installation mit korrekter Abfolge
 install_crafty() {
     header
-    progress "Crafty Controller Installation"
+    progress "Starte Crafty Controller Installation"
     
-    # Voraussetzungen prüfen
-    if ! command -v git &> /dev/null; then
-        progress "Installiere Git..."
-        run_cmd "sudo apt update"
-        run_cmd "sudo apt install -y git"
-    fi
+    # Vorbereitung
+    run_cmd "sudo apt update"
+    run_cmd "sudo apt install -y git"
     
-    # Crafty Installer herunterladen
+    # Clone Repository mit Fehlerbehandlung
     if [ ! -d "crafty-installer-4.0" ]; then
-        run_cmd "git clone https://gitlab.com/crafty-controller/crafty-installer-4.0.git"
-    else
-        warning "Crafty Installer Verzeichnis existiert bereits - Überspringe Download"
+        run_cmd "git clone https://gitlab.com/crafty-controller/crafty-installer-4.0.git" || error "Clone fehlgeschlagen"
     fi
     
-    # Crafty installieren
-    cd crafty-installer-4.0 || error "Verzeichnis nicht gefunden"
+    # Wechsel ins Verzeichnis mit Fehlerbehandlung
+    run_cmd "cd crafty-installer-4.0" || error "Verzeichniswechsel fehlgeschlagen"
     
-    progress "Starte Crafty Installation (automatische Bestätigung aktiviert)..."
-    run_cmd "sudo ./install_crafty.sh"
+    # Installation mit automatischer Bestätigung
+    progress "Starte Installationsskript (automatische Bestätigung)"
+    echo -e "y\n" | sudo ./install_crafty.sh || error "Crafty Installation fehlgeschlagen"
     
-    # Auf Abschluss warten
-    local timeout=300
-    local start_time=$(date +%s)
-    
-    while [ ! -f "/var/opt/minecraft/crafty/run_crafty.sh" ]; do
-        sleep 5
-        progress "Warte auf Crafty Installation..."
-        
-        # Timeout prüfen
-        local current_time=$(date +%s)
-        local elapsed=$((current_time - start_time))
-        
-        if [ $elapsed -ge $timeout ]; then
-            error "Timeout bei Crafty Installation"
-        fi
-    done
+    # Verifizierung der Installation
+    if [ ! -f "/var/opt/minecraft/crafty/run_crafty.sh" ]; then
+        error "Crafty Installation unvollständig - run_crafty.sh nicht gefunden"
+    fi
     
     # Crafty starten
-    progress "Starte Crafty Controller im Hintergrund..."
+    progress "Starte Crafty Dienst"
     sudo su - crafty -c "cd /var/opt/minecraft/crafty && nohup ./run_crafty.sh > crafty.log 2>&1 &"
+    sleep 10
     
-    # Warten bis Dienst läuft
-    sleep 15
+    # Zurück zum ursprünglichen Verzeichnis
     cd ..
-    success "Crafty Controller erfolgreich installiert und gestartet"
+    
+    success "Crafty Controller erfolgreich installiert"
 }
 
-# Playit Installation
+# Playit.gg Installation
 install_playit() {
     header
-    progress "Playit.gg Installation"
+    progress "Starte Playit.gg Installation"
     
     run_cmd "wget https://github.com/playit-cloud/playit-agent/releases/download/v0.15.26/playit-linux-amd64 -O playit-linux-amd64"
     run_cmd "chmod +x playit-linux-amd64"
     
-    # Service erstellen
+    # Service einrichten
     run_cmd "sudo tee /etc/systemd/system/playit.service > /dev/null <<EOL
 [Unit]
 Description=Playit.gg Agent
@@ -142,22 +97,23 @@ EOL"
     run_cmd "sudo systemctl start playit"
     run_cmd "sudo systemctl enable playit"
     
-    success "Playit.gg erfolgreich installiert und als Service eingerichtet"
+    success "Playit.gg erfolgreich installiert"
 }
 
-# Hauptinstallation
+# Hauptfunktion
 main() {
-    # Systemaktualisierung
+    # Systemvorbereitung
+    header
     run_cmd "sudo apt update"
     run_cmd "sudo apt upgrade -y"
     
-    # Crafty Installation
+    # Crafty installieren
     install_crafty
     
-    # Playit Installation
+    # Playit installieren
     install_playit
     
-    # Zusammenfassung anzeigen
+    # Zusammenfassung
     header
     echo -e "${GREEN}╔══════════════════════════════════════════════════╗"
     echo -e "║          Installation erfolgreich abgeschlossen!         ║"
@@ -166,20 +122,30 @@ main() {
     
     echo -e "${CYAN}════════════════════ Zusammenfassung ════════════════════${NC}"
     echo -e "${YELLOW}🔹 Crafty Controller:${NC}"
-    echo -e "  - Zugriff: ${GREEN}https://$(hostname -I | cut -d' ' -f1):8443${NC}"
+    echo -e "  - URL: ${GREEN}https://$(hostname -I | cut -d' ' -f1):8443${NC}"
     echo -e "  - Standard Login: admin / crafty"
     echo -e "  - Verzeichnis: /var/opt/minecraft/crafty"
-    echo -e "  - Logs: sudo tail -f /var/opt/minecraft/crafty/logs/*.log"
     echo ""
     echo -e "${YELLOW}🔹 Playit.gg:${NC}"
     echo -e "  - Setup: ./playit-linux-amd64 setup"
-    echo -e "  - Status: systemctl status playit"
-    echo -e "  - Logs: journalctl -u playit -f"
+    echo -e "  - Status: sudo systemctl status playit"
     echo ""
     echo -e "${CYAN}══════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}Fertig! Drücken Sie eine Taste zum Beenden.${NC}"
-    read -n 1 -s -r
 }
 
-# Hauptprogramm
+# Hilfsfunktion für Befehlsausführung
+run_cmd() {
+    echo -e "${BLUE}┌── Befehl:${NC} ${YELLOW}$1${NC}"
+    echo -e "${BLUE}└──${NC} $(date)"
+    eval "$1" > /tmp/install.log 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}└── FEHLER!${NC} Log: /tmp/install.log"
+        return 1
+    else
+        echo -e "${GREEN}└── Erfolgreich${NC}"
+        return 0
+    fi
+}
+
+# Skriptstart
 main
