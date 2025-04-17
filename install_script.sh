@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 header() {
     clear
     echo -e "${YELLOW}╔══════════════════════════════════════════════════╗"
-    echo -e "║${MAGENTA}         Crafty & Playit Installer (v2.0)         ${YELLOW}║"
+    echo -e "║${MAGENTA}         Crafty & Playit Installer (v3.0)         ${YELLOW}║"
     echo -e "╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -39,19 +39,19 @@ warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
-# Funktion für Benutzerabfrage
-ask() {
-    echo -e "${BLUE}?${NC} ${CYAN}$1${NC} [y/N] "
-    read -n 1 -r
-    echo
-    [[ $REPLY =~ ^[Yy]$ ]]
-}
-
-# Funktion zur Befehlsausführung
+# Funktion zur Befehlsausführung mit automatischer Bestätigung
 run_cmd() {
     echo -e "${BLUE}┌── ${MAGENTA}Befehl:${NC} ${YELLOW}$1${NC}"
     echo -e "${BLUE}└──${NC} $(date)"
-    eval "$1" > /tmp/install.log 2>&1
+    
+    # Spezialbehandlung für crafty installer
+    if [[ "$1" == *"install_crafty.sh"* ]]; then
+        # Automatische Bestätigung aller Fragen
+        echo -e "y\n" | sudo ./install_crafty.sh > /tmp/install.log 2>&1
+    else
+        eval "$1" > /tmp/install.log 2>&1
+    fi
+    
     if [ $? -ne 0 ]; then
         echo -e "${RED}└── FEHLER!${NC} Log: /tmp/install.log"
         return 1
@@ -68,12 +68,9 @@ install_crafty() {
     
     # Voraussetzungen prüfen
     if ! command -v git &> /dev/null; then
-        if ask "Git ist nicht installiert. Soll Git installiert werden?"; then
-            run_cmd "sudo apt update"
-            run_cmd "sudo apt install -y git"
-        else
-            error "Git ist erforderlich für die Installation."
-        fi
+        progress "Installiere Git..."
+        run_cmd "sudo apt update"
+        run_cmd "sudo apt install -y git"
     fi
     
     # Crafty Installer herunterladen
@@ -86,13 +83,24 @@ install_crafty() {
     # Crafty installieren
     cd crafty-installer-4.0 || error "Verzeichnis nicht gefunden"
     
-    progress "Starte Crafty Installation (dies kann einige Minuten dauern)..."
-    sudo ./install_crafty.sh <<< $'y\n' || error "Crafty Installation fehlgeschlagen"
+    progress "Starte Crafty Installation (automatische Bestätigung aktiviert)..."
+    run_cmd "sudo ./install_crafty.sh"
     
     # Auf Abschluss warten
+    local timeout=300
+    local start_time=$(date +%s)
+    
     while [ ! -f "/var/opt/minecraft/crafty/run_crafty.sh" ]; do
         sleep 5
         progress "Warte auf Crafty Installation..."
+        
+        # Timeout prüfen
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+        
+        if [ $elapsed -ge $timeout ]; then
+            error "Timeout bei Crafty Installation"
+        fi
     done
     
     # Crafty starten
@@ -100,7 +108,7 @@ install_crafty() {
     sudo su - crafty -c "cd /var/opt/minecraft/crafty && nohup ./run_crafty.sh > crafty.log 2>&1 &"
     
     # Warten bis Dienst läuft
-    sleep 10
+    sleep 15
     cd ..
     success "Crafty Controller erfolgreich installiert und gestartet"
 }
@@ -140,18 +148,14 @@ EOL"
 # Hauptinstallation
 main() {
     # Systemaktualisierung
-    if ask "Systemupdates durchführen (apt update & upgrade)?"; then
-        run_cmd "sudo apt update"
-        run_cmd "sudo apt upgrade -y"
-    fi
+    run_cmd "sudo apt update"
+    run_cmd "sudo apt upgrade -y"
     
     # Crafty Installation
     install_crafty
     
     # Playit Installation
-    if ask "Playit.gg installieren?"; then
-        install_playit
-    fi
+    install_playit
     
     # Zusammenfassung anzeigen
     header
